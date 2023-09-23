@@ -1,0 +1,12 @@
+http.host: "0.0.0.0"
+
+node.name: "test-${PIPELINE_UNDER_TEST}"
+
+path.config: "/usr/share/logstash/pipelines/${PIPELINE_UNDER_TEST}"
+
+pipeline.id: "test-${PIPELINE_UNDER_TEST}"
+
+config.reload.automatic: true
+
+monitoring.enabled: false
+xpack.monitoring.enabled: false

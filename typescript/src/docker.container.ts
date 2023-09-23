@@ -19,19 +19,13 @@ const createContainerOpts: (serviceName: string) => ContainerCreateOptions = (se
     Mounts: [
       {
         Type: 'bind',
-        Source: `${__dirname}/../config`,
+        Source: `${__dirname}/../../logstash/config`,
         Target: '/usr/share/logstash/config',
         ReadOnly: true,
       },
       {
         Type: 'bind',
-        Source: `${__dirname}/../pipelines`,
-        Target: '/usr/share/logstash/test/pipelines',
-        ReadOnly: true,
-      },
-      {
-        Type: 'bind',
-        Source: `${__dirname}/../../pipelines`,
+        Source: `${__dirname}/../../logstash/pipelines`,
         Target: '/usr/share/logstash/pipelines',
         ReadOnly: true,
       },
@@ -41,7 +35,7 @@ const createContainerOpts: (serviceName: string) => ContainerCreateOptions = (se
     },
   },
   Labels: {
-    'logstash.testcase': serviceName,
+    'logstashtdd.testcase': serviceName,
   },
   Env: [
     `PIPELINE_UNDER_TEST=${serviceName}`,
@@ -59,7 +53,7 @@ export const containerForService = async (serviceName: string) => {
       status: ['running'],
       health: ['healthy'],
       label: [
-        `logstash-tdd.testcase=${serviceName}`,
+        `logstashtdd.testcase=${serviceName}`,
       ],
     }),
   })).pop();
