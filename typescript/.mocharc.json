@@ -1,0 +1,11 @@
+{
+  "extension": [
+    "ts"
+  ],
+  "spec": "src/**/*.spec.ts",
+  "loader": "ts-node/esm",
+  "require": [
+    "src/mocha.global.fixtures.ts"
+  ],
+  "slow": 500
+}
