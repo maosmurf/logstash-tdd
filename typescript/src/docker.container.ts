@@ -1,12 +1,18 @@
-import { docker, LOGSTASH_IMAGE } from './mocha.global.fixtures';
 import { Container, ContainerCreateOptions, ContainerInfo, ContainerInspectInfo } from 'dockerode';
+import retry from 'async-await-retry';
 import { IncomingMessage } from 'http';
+import streamToString from 'stream-to-string';
 import { extract as tarExtract } from 'tar-stream';
+import {v4} from "uuid";
+import { docker, LOGSTASH_IMAGE } from './docker';
 
-const retry = require('async-await-retry');
-const streamToString = require('stream-to-string');
+export type ContainerSuite = {
+  container: Container,
+  url: string,
+}
 
 const createContainerOpts: (serviceName: string) => ContainerCreateOptions = (serviceName) => ({
+  name: `logstash-tdd-${serviceName}`,
   Image: LOGSTASH_IMAGE,
   ExposedPorts: {
     '8080/tcp': {},
@@ -72,6 +78,9 @@ export const containerForService = async (serviceName: string) => {
   const info: ContainerInspectInfo = await retry(() => {
     return new Promise((resolve, reject) => {
       container.inspect((err, info) => {
+        if (err) {
+          console.error(err);
+        }
         if (info.State.Health.Status == 'starting') {
           console.debug(`starting ${info.Name.substring(1)}`);
           reject(info);
@@ -88,9 +97,11 @@ export const containerForService = async (serviceName: string) => {
 
   console.log(`using ${info.Name.substring(1)} with ports ${JSON.stringify(info.NetworkSettings.Ports)}`);
 
+  const url = `http://127.0.0.1:${info.NetworkSettings.Ports['8080/tcp'][0].HostPort}`;
+
   return {
     container,
-    info,
+    url,
   };
 };
 
@@ -118,7 +129,7 @@ const extractArchive = (archiveResponse: IncomingMessage) => new Promise<Map<str
   const extract = tarExtract({});
   const entries = new Map<string, string>();
   extract.on('entry', (header, stream, next) => {
-    streamToString(stream).then(content => {
+    streamToString(stream).then((content: string) => {
       entries.set(header.name, content);
       stream.resume();
     });
@@ -128,10 +139,29 @@ const extractArchive = (archiveResponse: IncomingMessage) => new Promise<Map<str
   archiveResponse.pipe(extract);
 });
 
-export const readEvent = async (container: Container, id: string, parse: boolean = true) => {
+export const transform = async (suite: ContainerSuite, body: object) => {
+  const id = v4();
+  await send(suite, {
+    id,
+    ...body,
+  });
+  return await readEvent(suite, id);
+}
+
+const send = (suite: ContainerSuite, body: object) => fetch(suite.url, {
+  method: 'POST', body: JSON.stringify(body),
+});
+
+const readEvent = async (suite: ContainerSuite, id: string, parse: boolean = true) => {
   const filename = `test_${id}.json`;
-  const msg: IncomingMessage = await getArchive(container, `/tmp/${filename}`);
+  const msg: IncomingMessage = await getArchive(suite.container, `/tmp/${filename}`);
   const files = await extractArchive(msg);
   const file = files.get(filename);
   return parse ? JSON.parse(file) : file;
+};
+
+export const close = async (suite: ContainerSuite) => {
+  if (process.env.CI) {
+    await suite?.container.stop();
+  }
 };
